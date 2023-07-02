@@ -1,0 +1,151 @@
+#!/usr/bin/env node
+
+function parse_args(argv){
+    const args = {
+        help: false,
+        list: false,
+        keys: []
+    };
+
+    let opt_end = false,
+        last_opt = 0;
+
+    argv.forEach((arg, i) => {
+        if (opt_end){
+            return;
+        }
+
+        switch(arg){
+            case '-l':
+            case '--list':
+            case 'list':
+                args.list = true;
+                last_opt = i+1;
+                break;
+            case '-h':
+            case '--help':
+            case 'help':
+                args.help = true;
+                last_opt = i+1;
+                break;
+            default:
+                opt_end = true;
+                last_opt = i;
+        }
+    });
+
+    args.keys = argv.slice(last_opt);
+
+    return args;
+}
+
+function print_help(){
+    console.log(`NAME
+    pw - copy a password from Bitwarden into your clipboard
+
+SYNOPSIS
+    pw list [key]       Show the list of items available, or only items matching [key].
+    pw <key>            Passwords are copied into your clipboard, notes are displayed on stdout.
+
+    Key can be an exact-match item ID or name, or a case-insensitive substring of a name.
+`);
+}
+
+function to_type(n){
+    switch(n){
+        case 1: return 'password';
+        case 2: return 'notes';
+        default: return 'unknown';
+    }
+}
+
+function exec_handler(fn){
+    return function(err, stdout, stderr){
+        if (err){
+            console.error(stderr);
+            console.error(err);
+            process.exit(2);
+        }
+
+        if (fn){
+            fn(stdout);
+        }else if (stdout){
+            console.log(stdout);
+        }
+    }
+}
+
+function print_item(x){
+    let t = to_type(x.type);
+
+    if (t === 'password'){
+        console.log(`${x.id}\t${x.name} (${x.login && x.login.username ? x.login.username : 'password'})`);
+    }else{
+        console.log(`${x.id}\t${x.name} (${t})`);
+    }
+}
+
+function resolve_item(item){
+    if (item.type === 1){
+        let clippy = 'pbcopy';
+
+        if (os.platform() === 'linux'){
+            clippy = 'xclip -selection c';
+        }
+
+        exec(`bw get password ${item.id} | ${clippy}`, exec_handler());
+    }else{
+        exec(`bw get ${to_type(item.type)} ${item.id}`, exec_handler());
+    }
+}
+
+function process_key(k, list){
+    let arr = list.filter(x => x.name === k || x.id === k);
+
+    if (arr.length > 1){
+        console.error(`Multiple matches for key "${k}"`);
+        process.exit(4);
+    }else if (arr.length === 1){
+        resolve_item(arr[0]);
+    }else{
+        arr = list.filter(x => x.name.toLowerCase().match(k.toLowerCase()));
+
+        if (arr.length > 1){
+            console.error(`No exact matches and multiple fuzzy matches for "${k}"`);
+            process.exit(5);
+        }else if (arr.length === 1){
+            resolve_item(arr[0]);
+        }else{
+            console.error(`No matches for "${k}"`);
+        }
+    }
+}
+
+const { exec } = require('node:child_process');
+const { argv } = require('node:process');
+const os = require('node:os');
+
+let args = parse_args(argv.slice(2));
+
+if (args.help || (!args.list && args.keys.length < 1)){
+    print_help();
+    process.exit(0);
+}
+
+exec('bw list items', exec_handler(stdout => {
+    let json = null;
+
+    try{
+        json = JSON.parse(stdout);
+    }catch(ex){
+        console.error(ex);
+        process.exit(3);
+    }
+
+    if (args.list){
+        json.filter(x => args.keys.length ? x.name.toLowerCase().match(args.keys[0].toLowerCase()) : true)
+            .forEach(print_item);
+    }else if (args.keys.length){
+        process_key(args.keys[0], json);
+    }
+}));
