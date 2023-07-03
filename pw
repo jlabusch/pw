@@ -76,12 +76,14 @@ function exec_handler(fn){
 }
 
 function print_item(x){
-    let t = to_type(x.type);
+    let t = to_type(x.type),
+        name = `${x.id}\t\x1b[36m${x.name}\x1b[0m`,
+        coll = x.collections.length ? `\x1b[33m[${x.collections.join(', ')}]\x1b[0m` : '';
 
     if (t === 'password'){
-        console.log(`${x.id}\t${x.name} (${x.login && x.login.username ? x.login.username : 'password'})`);
+        console.log(`${name} (${x.login && x.login.username ? x.login.username : 'password'}) ${coll} `);
     }else{
-        console.log(`${x.id}\t${x.name} (${t})`);
+        console.log(`${name} (${t}) ${coll}`);
     }
 }
 
@@ -108,7 +110,7 @@ function process_key(k, list){
     }else if (arr.length === 1){
         resolve_item(arr[0]);
     }else{
-        arr = list.filter(x => x.name.toLowerCase().match(k.toLowerCase()));
+        arr = list.filter(x => loose_match(x, 'name', k));
 
         if (arr.length > 1){
             console.error(`No exact matches and multiple fuzzy matches for "${k}"`);
@@ -119,6 +121,23 @@ function process_key(k, list){
             console.error(`No matches for "${k}"`);
         }
     }
+}
+
+function loose_match(obj, key, value){
+    return obj[key].toLowerCase().match(value.toLowerCase());
+}
+
+function safe_json(input){
+    let json = null;
+
+    try{
+        json = JSON.parse(input);
+    }catch(ex){
+        console.error(ex);
+        process.exit(3);
+    }
+
+    return json;
 }
 
 const { exec } = require('node:child_process');
@@ -133,19 +152,23 @@ if (args.help || (!args.list && args.keys.length < 1)){
 }
 
 exec('bw list items', exec_handler(stdout => {
-    let json = null;
-
-    try{
-        json = JSON.parse(stdout);
-    }catch(ex){
-        console.error(ex);
-        process.exit(3);
-    }
+    let list = safe_json(stdout);
 
     if (args.list){
-        json.filter(x => args.keys.length ? x.name.toLowerCase().match(args.keys[0].toLowerCase()) : true)
-            .forEach(print_item);
+        exec('bw list collections', exec_handler(stdout => {
+            let collections = {};
+
+            safe_json(stdout).forEach(c => {
+                collections[c.id] = c.name;
+            });
+
+            list.filter(x => args.keys.length ? loose_match(x, 'name', args.keys[0]) : true)
+                .forEach(x => {
+                    x.collections = x.collectionIds.map(c => collections[c]);
+                    print_item(x);
+                });
+        }));
     }else if (args.keys.length){
-        process_key(args.keys[0], json);
+        process_key(args.keys[0], list);
     }
 }));
