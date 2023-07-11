@@ -89,10 +89,14 @@ function print_item(x){
 
 function resolve_item(item){
     if (item.type === 1){
-        let clippy = 'pbcopy';
+        let clippy = 'clip.exe';
 
         if (os.platform() === 'linux'){
-            clippy = 'xclip -selection c';
+            if (!os.release().toLowerCase().includes('microsoft')){ // WSL check
+                clippy = 'xclip -selection c';
+            }
+        }else if (os.platform() === 'darwin'){
+            clippy = 'pbcopy';
         }
 
         exec(`bw get password ${item.id} | ${clippy}`, exec_handler());
