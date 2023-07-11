@@ -11,3 +11,7 @@
 
  - Depends on having a recent version of `node` installed.
  - This isn't intended to replace `bw`, just add nicer wrappers for the most common paths: finding passwords and copying them into your paste buffer.
+
+# INSTALLATION
+
+ -  Clone this repo and add `pw` to your path, e.g. by adding `export PATH="/path/to/pw:$PATH"` to your `.bashrc`
