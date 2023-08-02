@@ -100,6 +100,10 @@ function resolve_item(item){
         }
 
         exec(`bw get password ${item.id} | ${clippy}`, exec_handler());
+
+        if (item.notes){
+            exec(`bw get notes ${item.id}`, exec_handler());
+        }
     }else{
         exec(`bw get ${to_type(item.type)} ${item.id}`, exec_handler());
     }
