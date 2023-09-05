@@ -81,7 +81,22 @@ function print_item(x){
         coll = x.collections.length ? `\x1b[33m[${x.collections.join(', ')}]\x1b[0m` : '';
 
     if (t === 'password'){
-        console.log(`${name} (${x.login && x.login.username ? x.login.username : 'password'}) ${coll} `);
+        let label = 'password';
+
+        if (x.login){
+            if (x.login.username){
+                label = x.login.username;
+            }
+
+            if (Array.isArray(x.login.uris) && x.login.uris.length){
+                let domain = x.login.uris[0].uri.replace(/^[^:]+:\/\//, '')
+                                                .replace(/:\d+/, '')
+                                                .replace(/\/.*/, '');
+                label = `${label} => ${domain}`;
+            }
+        }
+
+        console.log(`${name} (${label}) ${coll} `);
     }else{
         console.log(`${name} (${t}) ${coll}`);
     }
